@@ -24,14 +24,23 @@ DEFAULTS = {
 
 
 @contextmanager
-def running_product(port: int, **env: str):
+def running_product(port: int, log_path: Path | None = None, **env: str):
     """Corre ``uvicorn app.main:app`` en ``port`` mientras dure el bloque.
 
     El cliente que entrega ya manda la clave de la fábrica en ``X-API-Key``.
+    Con ``log_path``, la salida y los errores del proceso se guardan ahí para
+    poder revisar qué escribió el producto en su log.
     """
     settings = {**os.environ, **DEFAULTS, **env}
     command = [sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(port)]
-    server = subprocess.Popen(command, cwd=PRODUCT, env=settings)
+    sink = open(log_path, "wb") if log_path else None  # noqa: SIM115
+    server = subprocess.Popen(
+        command,
+        cwd=PRODUCT,
+        env=settings,
+        stdout=sink,
+        stderr=subprocess.STDOUT if sink else None,
+    )
     url = f"http://127.0.0.1:{port}"
     try:
         for _ in range(40):
@@ -46,3 +55,5 @@ def running_product(port: int, **env: str):
     finally:
         server.terminate()
         server.wait(timeout=10)
+        if sink:
+            sink.close()
