@@ -31,10 +31,14 @@ modelo, resiste fallas del gateway, corre con varios procesos y se puede operar 
    - El estado compartido en memoria (límite de peticiones, caché, métricas) no debe romper nada con varios
      procesos; el `request_id` sigue siendo distinto en cada petición.
 5. **Tablero** (dueño: `observability`).
-   - `GET /dashboard` exige `X-API-Key` (`401` sin clave o inválida). Responde una página HTML.
-   - La página pide `/metrics` cada 5 segundos y muestra: peticiones, `error_rate`, p50 y p95 contra el SLO,
-     costo acumulado, costo promedio por petición, rutas de modelo, llamadas con caché y PII por tipo.
-   - La clave la toma de `sessionStorage` (la misma de la página principal); nunca va en el código de la página.
+   - `GET /dashboard` **no pide clave**: un navegador no puede mandar `X-API-Key` al abrir una URL. Responde `200`
+     con una página HTML sin cifras y sin ninguna clave dentro.
+   - La página le pide la clave a la persona y la guarda en `sessionStorage` (la misma de la página principal).
+     Con ella lee `/metrics` cada 5 segundos, mandándola en `X-API-Key`. `/metrics` sigue exigiendo la clave
+     (`401` sin clave o inválida).
+   - La página muestra: peticiones, `error_rate`, p50 y p95 contra el SLO, costo acumulado, costo promedio por
+     petición, rutas de modelo, llamadas con caché y PII por tipo. Sin clave válida no muestra cifras.
+   - La clave nunca va en el código de la página.
 6. **Métricas de negocio en `/metrics`** (dueño: `observability`). Se agregan a las que ya existen:
    - `questions_by_department`: preguntas por departamento (objeto nombre → número).
    - `tool_usage`: usos por herramienta (objeto nombre → número).
@@ -57,7 +61,8 @@ Pruebas unitarias (dueño: `qa-unit`): una por cada regla de los puntos 1 a 7, c
 
 ## Pruebas de punta a punta (las agrega `qa-e2e`)
 
-- La página `/dashboard` abre con la clave y muestra las cifras de peticiones y `error_rate`.
+- La página `/dashboard` abre sin clave; al escribir la clave en la página muestra las cifras de peticiones y
+  `error_rate`.
 - Sin clave, el tablero no muestra cifras.
 - Una pregunta con un correo no lo deja visible en la respuesta de la página.
 
@@ -72,7 +77,8 @@ Pruebas unitarias (dueño: `qa-unit`): una por cada regla de los puntos 1 a 7, c
 ## Cómo se comprueba
 
 - `verification unit`, `contract`, `qa`, `e2e` y `evaluate`, como en la sesión 4. El contrato de esta sesión es
-  `verification/contract/test_contract_05.py`.
+  `verification/contract/test_contract_05.py`. Para el tablero: `/dashboard` sin clave da `200` y su HTML no trae
+  la clave de la fábrica; `/metrics` sin clave da `401` y con clave da `200`.
 - Una persona aprueba el plan y aprueba publicar.
 - `uv run python -m verification production <url>`: la prueba de humo.
 - `LOAD_API_KEY=<clave> uv run python -m verification load <url>`: 50 peticiones, 10 a la vez; falla si el

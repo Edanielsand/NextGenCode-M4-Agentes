@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
+from verification.server import FACTORY_KEY
+
 RFC = "GOMS800101AB1"
 EMAIL = "sofia.gomez@example.com"
 BUSINESS_METRICS = ("questions_by_department", "tool_usage", "cache_hit_pct",
@@ -21,9 +23,15 @@ def test_pii_in_the_question_never_reaches_the_log(api_workers):
     assert text.count('"pii_detected"') >= 2, "faltan los eventos pii_detected"
 
 
-def test_dashboard_needs_a_key(api):
-    assert httpx.get(f"{api.base_url}/dashboard").status_code == 401
-    assert api.get("/dashboard").status_code == 200
+def test_dashboard_is_public_and_carries_no_key(api):
+    response = httpx.get(f"{api.base_url}/dashboard")
+    assert response.status_code == 200
+    assert FACTORY_KEY not in response.text, "la página trae la clave"
+
+
+def test_metrics_still_need_a_key(api):
+    assert httpx.get(f"{api.base_url}/metrics").status_code == 401
+    assert api.get("/metrics").status_code == 200
 
 
 def test_metrics_include_the_business_metrics(api):
