@@ -1,5 +1,7 @@
 """Pruebas de la carga y del paso load, sin red."""
 
+import httpx
+
 import verification.__main__ as runner
 from verification import load
 
@@ -41,3 +43,30 @@ def test_exit_code_is_zero_at_or_below_one_percent(monkeypatch):
 
 def test_runner_has_the_load_step():
     assert "load" in runner.STEPS
+
+
+def test_breakdown_counts_codes_and_network_errors():
+    outcomes = ["429"] * 3 + ["200"] * 2 + ["502", "red (ReadTimeout)"]
+    assert load.format_breakdown(outcomes) == (
+        "200: 2, 429: 3, 502: 1, red (ReadTimeout): 1")
+
+
+def test_run_load_breaks_down_and_prints_only_first_details(monkeypatch, capsys):
+    def handler(request):
+        n = handler.calls = getattr(handler, "calls", 0) + 1
+        if n == 1:
+            return httpx.Response(200, json={"answer": "ok"})
+        if n == 2:
+            raise httpx.ConnectTimeout("boom")
+        return httpx.Response(429, json={"detail": f"limite {n}"})
+
+    real_client = httpx.Client
+    monkeypatch.setattr(load.httpx, "Client", lambda **kw: real_client(
+        transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setenv("LOAD_API_KEY", "secret-key")
+    code = load.main(["http://x", "--n", "7", "--concurrency", "1"])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "200: 1, 429: 5, red (ConnectTimeout): 1" in out
+    assert out.count("detail 429:") == 3
+    assert "secret-key" not in out

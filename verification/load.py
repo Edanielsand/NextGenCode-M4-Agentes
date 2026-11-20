@@ -18,6 +18,8 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 
 MAX_ERROR_RATE = 0.01
+DETAILS_PER_CODE = 3
+MAX_DETAIL_CHARS = 300
 QUESTION = {"question": "¿Quién es EMP-0004?"}
 
 
@@ -52,24 +54,62 @@ def summarize(results: list[tuple[bool, float]], elapsed: float) -> dict:
     }
 
 
+def format_breakdown(outcomes: list[str]) -> str:
+    """Desglose por resultado, p. ej. ``200: 17, 429: 30, red (ReadTimeout): 3``.
+
+    :param outcomes: una etiqueta por petición: el código HTTP o ``red (Tipo)``
+    :return: pares ``etiqueta: cantidad``; primero los códigos, de menor a mayor
+    :rtype: str
+    """
+    counts: dict[str, int] = {}
+    for label in outcomes:
+        counts[label] = counts.get(label, 0) + 1
+    ordered = sorted(counts, key=lambda label: (not label.isdigit(), int(label) if label.isdigit() else 0, label))
+    return ", ".join(f"{label}: {counts[label]}" for label in ordered)
+
+
+def extract_detail(response: httpx.Response) -> str | None:
+    """Campo ``detail`` del cuerpo JSON, o ``None``; nunca encabezados ni la clave."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    if not isinstance(body, dict) or "detail" not in body:
+        return None
+    return str(body["detail"])[:MAX_DETAIL_CHARS]
+
+
 def run_load(url: str, key: str, total: int, concurrency: int) -> dict:
     """Manda ``total`` peticiones a ``/ask``, ``concurrency`` a la vez."""
     # Render despierta el servicio dormido en hasta un minuto
     with httpx.Client(timeout=90, headers={"X-API-Key": key}) as client:
 
-        def one(_: int) -> tuple[bool, float]:
+        def one(_: int) -> tuple[bool, float, str, str | None]:
             start = time.perf_counter()
+            detail = None
             try:
                 response = client.post(f"{url}/ask", json=QUESTION)
                 success = response.status_code == 200
-            except httpx.HTTPError:
+                label = str(response.status_code)
+                if not success:
+                    detail = extract_detail(response)
+            except httpx.HTTPError as error:
                 success = False
-            return success, time.perf_counter() - start
+                label = f"red ({type(error).__name__})"
+            return success, time.perf_counter() - start, label, detail
 
         began = time.perf_counter()
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
-            results = list(pool.map(one, range(total)))
-        return summarize(results, time.perf_counter() - began)
+            full = list(pool.map(one, range(total)))
+        summary = summarize([(ok, secs) for ok, secs, _, _ in full], time.perf_counter() - began)
+        summary["breakdown"] = format_breakdown([label for _, _, label, _ in full])
+        details: dict[str, list[str]] = {}
+        for ok, _, label, detail in full:
+            samples = details.setdefault(label, [])
+            if not ok and detail is not None and len(samples) < DETAILS_PER_CODE:
+                samples.append(detail)
+        summary["details"] = {label: found for label, found in details.items() if found}
+        return summary
 
 
 def main(args: list[str]) -> int:
@@ -90,6 +130,11 @@ def main(args: list[str]) -> int:
     print(f"p50:        {summary['p50_ms']:.0f} ms")
     print(f"p95:        {summary['p95_ms']:.0f} ms")
     print(f"pet/s:      {summary['rps']:.1f}")
+    if summary.get("breakdown"):
+        print(f"desglose:   {summary['breakdown']}")
+    for label, samples in summary.get("details", {}).items():
+        for sample in samples:
+            print(f"detail {label}: {sample}")
     return 0 if summary["error_rate"] <= MAX_ERROR_RATE else 1
 
 
