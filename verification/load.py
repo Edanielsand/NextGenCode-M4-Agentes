@@ -1,11 +1,13 @@
 """Prueba de carga contra el producto publicado.
 
-Uso: ``LOAD_API_KEY=<clave> uv run python -m verification load <url> [--n 50]
-[--concurrency 10]``
+Uso: ``LOAD_API_KEYS=<clave1,clave2,...> uv run python -m verification load
+<url> [--n 50] [--concurrency 10]``
 
-La clave se lee de la variable ``LOAD_API_KEY``: nunca va en el comando ni en
-el chat, porque quedaría en el historial. Termina con código distinto de 0 si
-el ``error_rate`` pasa de 1 %.
+Las claves de los clientes de prueba se leen de ``LOAD_API_KEYS``, separadas
+por coma (si no existe, de ``LOAD_API_KEY``): nunca van en el comando ni en el
+chat, porque quedarían en el historial. Las peticiones se reparten entre las
+claves por turnos, para no chocar con el límite por cliente del producto.
+Termina con código distinto de 0 si el ``error_rate`` pasa de 1 %.
 """
 
 import argparse
@@ -79,16 +81,40 @@ def extract_detail(response: httpx.Response) -> str | None:
     return str(body["detail"])[:MAX_DETAIL_CHARS]
 
 
-def run_load(url: str, key: str, total: int, concurrency: int) -> dict:
-    """Manda ``total`` peticiones a ``/ask``, ``concurrency`` a la vez."""
-    # Render despierta el servicio dormido en hasta un minuto
-    with httpx.Client(timeout=90, headers={"X-API-Key": key}) as client:
+def parse_keys(environ: os._Environ | dict) -> list[str]:
+    """Claves de los clientes de prueba.
 
-        def one(_: int) -> tuple[bool, float, str, str | None]:
+    Lee ``LOAD_API_KEYS`` (separadas por coma); si no existe o queda vacía,
+    usa ``LOAD_API_KEY``.
+
+    :param environ: variables de entorno
+    :return: claves sin espacios ni vacíos; lista vacía si no hay ninguna
+    :rtype: list[str]
+    """
+    raw = environ.get("LOAD_API_KEYS", "") or environ.get("LOAD_API_KEY", "")
+    return [key.strip() for key in raw.split(",") if key.strip()]
+
+
+def key_for(keys: list[str], index: int) -> str:
+    """Clave de la petición ``index``: reparto por turnos entre los clientes."""
+    return keys[index % len(keys)]
+
+
+def run_load(url: str, keys: list[str], total: int, concurrency: int) -> dict:
+    """Manda ``total`` peticiones a ``/ask``, ``concurrency`` a la vez.
+
+    Cada petición lleva en ``X-API-Key`` la clave que le toca por turnos.
+    """
+    # Render despierta el servicio dormido en hasta un minuto
+    with httpx.Client(timeout=90) as client:
+
+        def one(index: int) -> tuple[bool, float, str, str | None]:
             start = time.perf_counter()
             detail = None
             try:
-                response = client.post(f"{url}/ask", json=QUESTION)
+                response = client.post(
+                    f"{url}/ask", json=QUESTION,
+                    headers={"X-API-Key": key_for(keys, index)})
                 success = response.status_code == 200
                 label = str(response.status_code)
                 if not success:
@@ -119,11 +145,12 @@ def main(args: list[str]) -> int:
     parser.add_argument("--n", type=int, default=50, help="peticiones en total")
     parser.add_argument("--concurrency", type=int, default=10, help="a la vez")
     options = parser.parse_args(args)
-    key = os.environ.get("LOAD_API_KEY", "")
-    if not key:
-        print("Uso: LOAD_API_KEY=<clave> python -m verification load <url>")
+    keys = parse_keys(os.environ)
+    if not keys:
+        print("Uso: LOAD_API_KEYS=<clave1,clave2,...> python -m verification load <url>")
         return 2
-    summary = run_load(options.url.rstrip("/"), key, options.n, options.concurrency)
+    summary = run_load(options.url.rstrip("/"), keys, options.n, options.concurrency)
+    print(f"clientes:   {len(keys)}")
     print(f"peticiones: {summary['requests']}")
     print(f"exitos:     {summary['successes']}")
     print(f"errores:    {summary['errors']} (error_rate {summary['error_rate']:.1%})")

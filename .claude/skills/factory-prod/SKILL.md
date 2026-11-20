@@ -69,13 +69,15 @@ Lleva una bitácora: una línea por paso con lo que pasó.
    1. Abra la pestaña Actions del repositorio y vea las cuatro etapas.
    2. Entre en Render > New > Blueprint y conecte el repositorio.
    3. Escriba los secretos en Render > Environment. Nunca en el chat.
-   4. Cuando el servicio esté Live, le pase la URL y defina `SMOKE_API_KEY` y `LOAD_API_KEY` en su terminal, sin
-      pegarlas aquí.
+   4. Cuando el servicio esté Live, le pase la URL y defina `SMOKE_API_KEY` y `LOAD_API_KEYS` en su terminal, sin
+      pegarlas aquí. `LOAD_API_KEYS` son varias claves de clientes de prueba separadas por coma: el producto limita
+      las peticiones por cliente, y la carga las reparte entre las claves para simular varios clientes.
 
    Espera la URL.
 9. **Humo y triage (máximo 2 ciclos).** Corre `uv run python -m verification production <url>`.
-   - Si pasa, corre la carga: `uv run python -m verification load <url>` (50 peticiones, 10 a la vez; la clave
-     la toma de `LOAD_API_KEY`, que la persona define en su terminal). Si también pasa → LISTA.
+   - Si pasa, corre la carga: `uv run python -m verification load <url>` (50 peticiones, 10 a la vez; las claves
+     las toma de `LOAD_API_KEYS`, varias claves de clientes de prueba separadas por coma que la persona define en
+     su terminal; la carga reparte las peticiones entre ellas por turnos). Si también pasa → LISTA.
    - Si la prueba de humo o la carga fallan → lanza `triage` con la salida y lee la primera línea de `output/triage.md`:
      - `security` o `deploy` → relánzalo con el diagnóstico. Corre `scripts/publish.py` de nuevo (el push redespliega)
        y repite este paso.

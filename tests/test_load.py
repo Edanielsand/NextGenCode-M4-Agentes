@@ -21,8 +21,51 @@ def test_summary_counts_errors_and_rate():
 
 def test_the_key_never_comes_from_an_argument(monkeypatch, capsys):
     monkeypatch.delenv("LOAD_API_KEY", raising=False)
+    monkeypatch.delenv("LOAD_API_KEYS", raising=False)
     assert load.main(["http://x"]) == 2
-    assert "LOAD_API_KEY" in capsys.readouterr().out
+    assert "LOAD_API_KEYS" in capsys.readouterr().out
+
+
+def test_keys_come_from_the_plural_variable_first():
+    env = {"LOAD_API_KEYS": "a, b,,c ", "LOAD_API_KEY": "z"}
+    assert load.parse_keys(env) == ["a", "b", "c"]
+
+
+def test_keys_fall_back_to_the_single_variable():
+    assert load.parse_keys({"LOAD_API_KEY": "z"}) == ["z"]
+    assert load.parse_keys({}) == []
+
+
+def test_requests_are_spread_across_keys_in_turns(monkeypatch, capsys):
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers["X-API-Key"])
+        return httpx.Response(200, json={"answer": "ok"})
+
+    real_client = httpx.Client
+    monkeypatch.setattr(load.httpx, "Client", lambda **kw: real_client(
+        transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.delenv("LOAD_API_KEY", raising=False)
+    monkeypatch.setenv("LOAD_API_KEYS", "k1,k2,k3")
+    code = load.main(["http://x", "--n", "7", "--concurrency", "1"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert seen == ["k1", "k2", "k3", "k1", "k2", "k3", "k1"]
+    assert "clientes:   3" in out
+
+
+def test_no_key_appears_in_the_output(monkeypatch, capsys):
+    real_client = httpx.Client
+    monkeypatch.setattr(load.httpx, "Client", lambda **kw: real_client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(429, json={"detail": "limite"})), **kw))
+    monkeypatch.setenv("LOAD_API_KEYS", "secret-one,secret-two")
+    load.main(["http://x", "--n", "4", "--concurrency", "1"])
+    out = capsys.readouterr().out
+    assert "secret-one" not in out
+    assert "secret-two" not in out
+    assert "429: 4" in out
 
 
 def test_exit_code_is_nonzero_above_one_percent(monkeypatch):
