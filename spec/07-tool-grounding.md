@@ -20,7 +20,7 @@ ninguna herramienta. Las pruebas no lo ven porque el modelo simulado siempre pid
      pide la herramienta.
 3. **Revisor** (dueño: `security`).
    - Si `tools_used` va vacío, o la respuesta menciona `get_employee` o `search_by_department`, cambia la respuesta
-     por `"No encontré datos para responder. Pregunta por un id como EMP-0001 o por un departamento."` y registra
+     por `"No encontré datos para responder. Solo atiendo preguntas de Recursos Humanos. Pregunta por un id de empleado como EMP-0001 o por un departamento."` y registra
      `output_rejected` con el motivo `no_tool_data` (nunca el texto de la respuesta).
    - Solo el motivo `no_tool_data` usa ese mensaje. Los demás motivos (por ejemplo `invented_id`) siguen con
      `"No pude generar una respuesta segura. Intenta de nuevo."`.

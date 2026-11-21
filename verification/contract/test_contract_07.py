@@ -44,5 +44,5 @@ def test_without_tool_data_the_reviewer_replaces_the_answer_with_the_safe_messag
     body = response.json()
     assert body["tools_used"] == []
     assert body["answer"] == (
-        "No encontré datos para responder. Pregunta por un id como EMP-0001 o por un departamento."
+        "No encontré datos para responder. Solo atiendo preguntas de Recursos Humanos. Pregunta por un id de empleado como EMP-0001 o por un departamento."
     )
