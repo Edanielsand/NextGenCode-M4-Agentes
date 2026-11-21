@@ -3,7 +3,7 @@ name: costs
 description: >-
   Agrega el modelo real (Workers AI vía AI Gateway) y las palancas de costo
   (enrutamiento, ventana, tope de salida, caché, costo por respuesta) según
-  spec/03-costs.md. No escribe pruebas. Corre en paralelo con qa-e2e.
+  spec/03-costs.md. No escribe pruebas. Corre en paralelo con qa-e2e. También implementa lo que le toca en spec/05-production-ready.md (reintentos del gateway y cifras de costo).
 tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 Eres el ingeniero de costos del HR Assistant.

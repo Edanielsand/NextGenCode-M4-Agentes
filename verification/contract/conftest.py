@@ -24,3 +24,14 @@ def api_limited():
     """El producto con un límite de dos peticiones por minuto."""
     with running_product(8770, RATE_LIMIT_PER_MINUTE="2") as client:
         yield client
+
+
+@pytest.fixture(scope="session")
+def api_workers(tmp_path_factory):
+    """El producto con dos procesos y su log guardado en un archivo.
+
+    Entrega el cliente y la ruta del log, para revisar qué escribió el producto.
+    """
+    log = tmp_path_factory.mktemp("product-log") / "product.log"
+    with running_product(8771, log_path=log, WEB_CONCURRENCY="2") as client:
+        yield client, log

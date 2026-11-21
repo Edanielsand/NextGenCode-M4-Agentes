@@ -3,13 +3,15 @@
 Los agentes construyen el producto en `product/` a partir de la especificación de `spec/`. Las personas dirigen,
 aprueban y comprueban: no programan.
 
-- `/factory` corre la fábrica completa.
+- `/factory` corre la fábrica completa. `/factory-prod` la corre para el reto de producción
+  (`spec/05-production-ready.md`).
 - `.claude/agents/`: architect, qa-unit, developer, observability, qa-style, costs, qa-e2e,
   security, deploy, triage.
 - `hooks/permissions.py`: cada agente escribe solo en sus carpetas; nadie lee `.env` y nadie publica sin
   `output/approved.txt`.
 - `hooks/activity_log.py`: bitácora de cada herramienta; `scripts/pipeline.py` dibuja el pipeline.
-- `verification/`: el código decide si un paso terminó bien, no el agente.
+- `verification/`: el código decide si un paso terminó bien, no el agente. `verification load <url>` es la carga
+  (`LOAD_API_KEY`); `scripts/cost_real.py` mide el costo real (`COST_API_KEY`).
 
 ## Reglas
 

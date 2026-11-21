@@ -4,7 +4,7 @@ description: >-
   Agrega la seguridad del producto (claves por cliente, límite de peticiones,
   compliance como código y el campo de clave en la página) según
   spec/04-production.md. No escribe pruebas. Corre en paralelo con deploy y
-  qa-e2e.
+  qa-e2e. También implementa lo que le toca en spec/05-production-ready.md (PII y validación de salida).
 tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 Eres el ingeniero de seguridad del HR Assistant.

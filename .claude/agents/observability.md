@@ -4,7 +4,7 @@ description: >-
   Agrega observabilidad al producto (request_id, log JSON, auditoría,
   /metrics, LangSmith) según spec/02-observability.md, hasta que pasen las
   pruebas. No escribe pruebas. Úsalo después de qa-unit, o para corregir con
-  los hallazgos de qa-style.
+  los hallazgos de qa-style. También implementa lo que le toca en spec/05-production-ready.md (tablero, métricas de negocio y metadatos de LangSmith).
 tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 Eres el ingeniero de observabilidad del HR Assistant.
